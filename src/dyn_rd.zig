@@ -22,6 +22,7 @@ const Opts = struct {
 pub fn read(reader: *std.Io.Reader, alloc: std.mem.Allocator, opts: Opts) DynRdErr![]u8 {
     var rd_buf: [opts.chunk_size]u8 = undefined;
     var all_stdin = std.ArrayList(u8){};
+    defer all_stdin.deinit(alloc);
     while (reader.readSliceShort(&rd_buf)) |chunk| {
         if (all_stdin.items.len > opts.byte_limit) {
             return DynRdErr.ByteLimitOverflow;
@@ -36,8 +37,7 @@ pub fn read(reader: *std.Io.Reader, alloc: std.mem.Allocator, opts: Opts) DynRdE
 
 fn test_template(str: []const u8, opts: Opts) !void {
     var rd = std.Io.Reader.fixed(str);
-    var dba = std.heap.DebugAllocator(.{}){};
-    const alloc = dba.allocator();
+    const alloc = std.testing.allocator;
     const result = try read(&rd, alloc, opts);
     defer alloc.free(result);
     try std.testing.expectEqualSlices(u8, str[0..], result);
