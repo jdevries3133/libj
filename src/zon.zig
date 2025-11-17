@@ -24,5 +24,6 @@ test "read simple zon from file" {
     };
     var rd = std.Io.Reader.fixed(zonstr);
     var diag: std.zon.parse.Diagnostics = .{};
-    _ = try fromReader(T, &rd, &diag, alloc);
+    const zon = try fromReader(T, &rd, &diag, alloc);
+    defer std.zon.parse.free(alloc, zon);
 }
