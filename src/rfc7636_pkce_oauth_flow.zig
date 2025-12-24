@@ -29,6 +29,10 @@ const UnreserveCharacters = struct {
             .run_length = 1,
             .first_char = '.'
         },
+        CharsetRange{
+            .run_length = 10,
+            .first_char = '0'
+        },
         CharsetRange {
             .run_length = 1,
             .first_char = '_'
@@ -76,12 +80,13 @@ const UnreserveCharacters = struct {
 test "unreserved chars" {
     try std.testing.expectEqual('-', try UnreserveCharacters.at(0));
     try std.testing.expectEqual('.', try UnreserveCharacters.at(1));
-    try std.testing.expectEqual('_', try UnreserveCharacters.at(2));
-    try std.testing.expectEqual('~', try UnreserveCharacters.at(3));
-    try std.testing.expectEqual('a', try UnreserveCharacters.at(4));
-    try std.testing.expectEqual('b', try UnreserveCharacters.at(5));
-    try std.testing.expectEqual('Z', try UnreserveCharacters.at(55));
-    try std.testing.expectError(error.IndexOutOfRange, UnreserveCharacters.at(56));
+    try std.testing.expectEqual('0', try UnreserveCharacters.at(2));
+    try std.testing.expectEqual('9', try UnreserveCharacters.at(11));
+    try std.testing.expectEqual('_', try UnreserveCharacters.at(12));
+    try std.testing.expectEqual('~', try UnreserveCharacters.at(13));
+    try std.testing.expectEqual('a', try UnreserveCharacters.at(14));
+    try std.testing.expectEqual('z', try UnreserveCharacters.at(39));
+    try std.testing.expectError(error.IndexOutOfRange, UnreserveCharacters.at(UnreserveCharacters.len));
 }
 
 test "unreserved char len" {
