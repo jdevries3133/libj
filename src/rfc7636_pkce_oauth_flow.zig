@@ -1,13 +1,34 @@
 const std = @import("std");
 
 /// https://datatracker.ietf.org/doc/html/rfc7636#section-4.1
-fn generate_code_verifier() void {
+fn generate_code_verifier(random: std.Random, out_buf: []u8) !void {
+    std.Random.bytes(random, out_buf);
+    for (0..out_buf.len) |i| {
+        const idx = @mod(out_buf[i], UnreserveCharacters.len);
+        out_buf[i] = try UnreserveCharacters.at(idx);
+    }
 }
 
 test "code verifier generation (Section 4.1)" {
+    var fake_prng = std.Random.DefaultPrng.init(1);
+    var buf = [_]u8{0} ** 128;
+    try generate_code_verifier(fake_prng.random(), &buf);
+
+    for (buf) |byte| {
+        // all bytes in the buffer, which was initialized to zero, have been
+        // overwritten
+        try std.testing.expect(byte != 0);
+
+        // all bytes are in UnreserveCharacters
+        var found = false;
+        for (0..UnreserveCharacters.len) |i| {
+            if (try UnreserveCharacters.at(@intCast(i)) == byte) {
+                found = true;
+            }
+        }
+        try std.testing.expect(found);
+    }
 }
-
-
 
 /// Unreserved characters.
 ///
