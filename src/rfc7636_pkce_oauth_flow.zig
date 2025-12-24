@@ -47,6 +47,14 @@ const UnreserveCharacters = struct {
         },
     };
 
+    const len = blk: {
+        var _len = 0;
+        for (charset) |range| {
+            _len += range.run_length;
+        }
+        break :blk _len;
+    };
+
     fn at(idx: u16) !u8 {
         var absolute_idx: u16 = 0;
         var char: ?u8 = null;
@@ -74,4 +82,8 @@ test "unreserved chars" {
     try std.testing.expectEqual('b', try UnreserveCharacters.at(5));
     try std.testing.expectEqual('Z', try UnreserveCharacters.at(55));
     try std.testing.expectError(error.IndexOutOfRange, UnreserveCharacters.at(56));
+}
+
+test "unreserved char len" {
+    try std.testing.expectEqual(66, UnreserveCharacters.len);
 }
