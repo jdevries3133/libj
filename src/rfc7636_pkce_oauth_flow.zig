@@ -1,5 +1,43 @@
 const std = @import("std");
 
+
+const code_challenge_len = std.base64.url_safe_no_pad.Encoder.calcSize(std.crypto.hash.sha2.Sha256.digest_length);
+/// https://datatracker.ietf.org/doc/html/rfc7636#section-4.2
+fn create_code_challenge(random: std.Random, code_verifier: []const u8, out_buf: []u8) !void {
+    if (out_buf.len != code_challenge_len) {
+        return error.WrongOutBufSize;
+    }
+    try generate_code_verifier(random, out_buf);
+    var verifier_hash: [std.crypto.hash.sha2.Sha256.digest_length]u8 = undefined;
+    var hasher = std.crypto.hash.sha2.Sha256.init(.{});
+    hasher.update(code_verifier);
+    hasher.final(&verifier_hash);
+
+    _ = std.base64.url_safe_no_pad.Encoder.encode(out_buf, &verifier_hash);
+}
+
+test "create code challenge requires sufficiently large input buffer" {
+    var fake_prng = std.Random.DefaultPrng.init(1);
+    const in: [1]u8 = undefined;
+    var out: [1]u8 = undefined;
+    try std.testing.expectError(
+        error.WrongOutBufSize,
+        create_code_challenge(fake_prng.random(), &in, &out)
+    );
+}
+
+test "creates code challenge" {
+    var fake_prng = std.Random.DefaultPrng.init(1);
+    const in: [1028]u8 = undefined;
+    var out: [code_challenge_len]u8 = undefined;
+    const SENTINEL = "SENTINEL";
+    for (0..SENTINEL.len) |idx| {
+        out[idx] = SENTINEL[idx];
+    }
+    try create_code_challenge(fake_prng.random(), &in, &out);
+    try std.testing.expect(out[0..SENTINEL.len] != SENTINEL);
+}
+
 /// https://datatracker.ietf.org/doc/html/rfc7636#section-4.1
 fn generate_code_verifier(random: std.Random, out_buf: []u8) !void {
     std.Random.bytes(random, out_buf);
