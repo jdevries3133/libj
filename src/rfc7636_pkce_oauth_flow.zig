@@ -1,4 +1,82 @@
 const std = @import("std");
+const string = @import("string.zig");
+
+/// Note: redirect URI and state params are not included because this oauth
+/// implementation has the PKCE flow in mind.
+///
+/// code_challenge_method also is not included because create_code_challenge
+/// will only create S256-type challenges. The RFC recommends making S256
+/// challenges, and to only use PLAIN if the client is incapable.
+///
+/// May return `error.WriteFailed` if `query_param_write_buf` is too small.
+///
+/// https://datatracker.ietf.org/doc/html/rfc7636#section-4.3
+fn prepare_authorization_request_uri(
+    host: []const u8,
+    client_id: []const u8,
+    scopes: []const u8,
+    code_challenge: []const u8,
+    query_param_write_buf: []u8
+) !std.Uri {
+    const client_id_c = std.Uri.Component{
+        .raw = client_id
+    };
+    const scopes_c = std.Uri.Component{
+        .raw = scopes
+    };
+    const challenge_c = std.Uri.Component{
+        .raw = code_challenge
+    };
+    var wr = std.Io.Writer.fixed(query_param_write_buf);
+    _ = try wr.write("client_id=");
+    try client_id_c.formatQuery(&wr);
+    _ = try wr.write("&scope=");
+    try scopes_c.formatQuery(&wr);
+    _ = try wr.write("&code_challenge=");
+    try challenge_c.formatQuery(&wr);
+    _ = try wr.write("&code_challenge_method=S256");
+    _ = try wr.write("&response_type=code");
+
+    const query_params = query_param_write_buf[0..wr.end];
+
+    return std.Uri{
+        .host = .{ .raw = host },
+        .path = .{ .raw = "/authorize" },
+        .scheme = "https",
+        .query = .{ .percent_encoded = query_params }
+    };
+}
+
+test "prepare authorization request URI" {
+    var buf: [2048]u8 = undefined;
+    const uri = try prepare_authorization_request_uri(
+        "google.com",
+        "1234",
+        "this that other",
+        "rando",
+        &buf
+    );
+    var uri_str: [2048]u8 = undefined;
+    var wr = std.Io.Writer.fixed(&uri_str);
+    try uri.format(&wr);
+    const uri_slice = uri_str[0..wr.end];
+    try std.testing.expect(string.contains("client_id=1234", uri_slice));
+    try std.testing.expect(string.contains("scope=this%20that%20other", uri_slice));
+}
+
+test "prepare authorization request uri with small write buf" {
+    var buf: [1]u8 = undefined;
+    try std.testing.expectError(
+        error.WriteFailed,
+        prepare_authorization_request_uri(
+            "google.com",
+            "1234",
+            "this that other",
+            "rando",
+            &buf
+        )
+    );
+}
 
 
 const code_challenge_len = std.base64.url_safe_no_pad.Encoder.calcSize(std.crypto.hash.sha2.Sha256.digest_length);
