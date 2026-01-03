@@ -13,9 +13,11 @@ const string = @import("string.zig");
 /// https://datatracker.ietf.org/doc/html/rfc7636#section-4.3
 pub fn prepare_authorization_request_uri(
     host: []const u8,
+    path: []const u8,
     client_id: []const u8,
     scopes: []const u8,
     code_challenge: []const u8,
+    redirect_uri: []const u8,
     query_param_write_buf: []u8
 ) !std.Uri {
     const client_id_c = std.Uri.Component{
@@ -27,6 +29,9 @@ pub fn prepare_authorization_request_uri(
     const challenge_c = std.Uri.Component{
         .raw = code_challenge
     };
+    const redirect_uri_c = std.Uri.Component{
+        .raw = redirect_uri
+    };
     var wr = std.Io.Writer.fixed(query_param_write_buf);
     _ = try wr.write("client_id=");
     try client_id_c.formatQuery(&wr);
@@ -37,11 +42,14 @@ pub fn prepare_authorization_request_uri(
     _ = try wr.write("&code_challenge_method=S256");
     _ = try wr.write("&response_type=code");
 
+    _  = try wr.write("&redirect_uri=");
+    try redirect_uri_c.formatQuery(&wr);
+
     const query_params = query_param_write_buf[0..wr.end];
 
     return std.Uri{
         .host = .{ .raw = host },
-        .path = .{ .raw = "/authorize" },
+        .path = .{ .raw = path },
         .scheme = "https",
         .query = .{ .percent_encoded = query_params }
     };
@@ -51,9 +59,11 @@ test "prepare authorization request URI" {
     var buf: [2048]u8 = undefined;
     const uri = try prepare_authorization_request_uri(
         "google.com",
+        "/foo",
         "1234",
         "this that other",
         "rando",
+        "localhost:123",
         &buf
     );
     var uri_str: [2048]u8 = undefined;
@@ -70,9 +80,11 @@ test "prepare authorization request uri with small write buf" {
         error.WriteFailed,
         prepare_authorization_request_uri(
             "google.com",
+            "/foo",
             "1234",
             "this that other",
             "rando",
+            "localhost:123",
             &buf
         )
     );
