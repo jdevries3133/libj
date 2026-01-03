@@ -1,5 +1,8 @@
 const std = @import("std");
 
+/// Read one line from STDIN.
+///
+/// Warning: only ASCII!
 pub fn readline(alloc: std.mem.Allocator, io: std.Io, transfer_buf: []u8) ![]u8 {
     const file = std.Io.File.stdin();
     var reader = file.reader(io, transfer_buf);
