@@ -41,7 +41,34 @@ pub fn main() !void {
     // Prints to stderr, ignoring potential errors.
     var writer = std.Io.Writer.Allocating.init(alloc);
     try uri.format(&writer.writer);
-    std.debug.print("challenge: {x}\nurl: {s}\n", .{challenge, writer.written()});
+    std.debug.print("oauth URL copied to the clipboard\n", .{});
+
+    var child = std.process.Child.init(&[_][]const u8{"pbcopy"}, alloc);
+
+    child.stdin_behavior = .Pipe;
+    child.stdout_behavior = .Ignore;
+    child.stderr_behavior = .Ignore;
+
+    try child.spawn(io);
+
+    var buf: [1024]u8 = undefined;
+    var wr = child.stdin.?.writer(io, &buf);
+    try uri.format(&wr.interface);
+    try wr.interface.writeByte(4);
+    try wr.interface.flush();
+    child.stdin.?.close(io);
+    child.stdin = null;
+    const result = try child.wait(io);
+    switch (result) {
+        .Exited => |code| {
+            if (code != 0) {
+                return error.CopyToClipboardFailedNonzeroExit;
+            }
+        },
+        .Signal => return error.CopyToClipboardFailedTerminationSignal,
+        .Stopped => return error.CopyToClipboardFailedStopped,
+        .Unknown => return error.CopyToClipboardFailedUnknown,
+    }
 
     var transfer_buf: [1024]u8 = undefined;
     const auth_response = try libj.readline(alloc, io, &transfer_buf);
