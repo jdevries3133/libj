@@ -1,5 +1,119 @@
 const std = @import("std");
 const string = @import("string.zig");
+const dbg = @import("dbg.zig").dbg;
+
+const AccessTokenRequest = struct {
+    uri: std.Uri,
+    body: []const u8
+};
+
+/// https://datatracker.ietf.org/doc/html/rfc7636#section-4.5
+pub fn prepare_access_token_request(
+    host: []const u8,
+    path: []const u8,
+    code_verifier: []const u8,
+    code: []const u8,
+    redirect_uri: []const u8,
+    client_id: []const u8,
+    client_secret: []const u8,
+    request_body_buf: []u8
+) !AccessTokenRequest {
+    const code_verifier_c = std.Uri.Component{
+        .raw = code_verifier
+    };
+    const code_c = std.Uri.Component{
+        .raw = code
+    };
+    const redirect_uri_c = std.Uri.Component{
+        .raw = redirect_uri
+    };
+    const client_id_c = std.Uri.Component{
+        .raw = client_id
+    };
+    const client_secret_c = std.Uri.Component{
+        .raw = client_secret
+    };
+    var wr = std.Io.Writer.fixed(request_body_buf);
+    _ = try wr.write("code_verifier=");
+    try code_verifier_c.formatQuery(&wr);
+    _ = try wr.write("&code=");
+    try code_c.formatQuery(&wr);
+    _ = try wr.write("&redirect_uri=");
+    try redirect_uri_c.formatQuery(&wr);
+    _ = try wr.write("&client_id=");
+    try client_id_c.formatQuery(&wr);
+    _ = try wr.write("&client_secret=");
+    try client_secret_c.formatQuery(&wr);
+    _ = try wr.write("&grant_type=authorization_code");
+
+    const body = request_body_buf[0..wr.end];
+
+    return .{
+        .uri = std.Uri{
+            .host = .{ .raw = host },
+            .path = .{ .raw = path },
+            .scheme = "https",
+        },
+        .body = body
+    };
+}
+
+test "prepare_access_token_request_uri" {
+    var buf: [1024]u8 = undefined;
+    const request = try prepare_access_token_request(
+        "google.com",
+        "/foo",
+        "bar",
+        "baz",
+        "http://127.0.0.1/callback",
+        "1234",
+        "5678",
+        &buf
+    );
+    var uri_str: [2048]u8 = undefined;
+    var wr = std.Io.Writer.fixed(&uri_str);
+    try request.uri.format(&wr);
+    const uri_slice = uri_str[0..wr.end];
+    const prefix = "https://google.com/foo";
+    try std.testing.expectEqualStrings(prefix, uri_slice[0..prefix.len]);
+    try std.testing.expect(string.contains("client_id=1234", request.body));
+    try std.testing.expect(string.contains("client_secret=5678", request.body));
+}
+
+/// https://datatracker.ietf.org/doc/html/rfc7636#section-4.5
+pub fn get_code(code_callback_uri: []const u8) ![]const u8 {
+    const uri = try std.Uri.parse(code_callback_uri);
+    const query_c = uri.query orelse {
+        return error.CodeNotFound;
+    };
+    const query = query_c.percent_encoded;
+    const needle =  "code=";
+    const start = std.mem.find(u8, query,needle) orelse {
+        return error.CodeNotFound;
+    };
+    const end = std.mem.findScalar(u8, query[start..], '&') orelse query.len;
+    return query[start + needle.len..end + start];
+}
+
+test "get code checks if uri has query" {
+    const redirect_uri = "https://fish.com";
+    try std.testing.expectError(error.CodeNotFound, get_code(redirect_uri));
+}
+
+test "get code checks if code query param is not there" {
+    const redirect_uri = "https://fish.com?foo=bar";
+    try std.testing.expectError(error.CodeNotFound, get_code(redirect_uri));
+}
+
+test "get code from redirect URI" {
+    const redirect_uri = "http://127.0.0.1:8000/?code=4/0ASc3gC2q6yzYW9OCTLcFZa_is-G98S16Ba79G7hwfJvgXuVIAO7eX_Td2Z3udVHfuhwyLQ&scope=https://www.googleapis.com/auth/calendar";
+    const code = try get_code(redirect_uri);
+    try std.testing.expectEqualStrings("4/0ASc3gC2q6yzYW9OCTLcFZa_is-G98S16Ba79G7hwfJvgXuVIAO7eX_Td2Z3udVHfuhwyLQ", code);
+
+    const redirect_uri2 = "http://127.0.0.12:8000/?code=4/0ASc3gC2q6yzYW9OCTLcFZa_is-G98Sa79G7hwfJvgXuVIAO7eX_Td2Z3udVHfuhwyLQ&scope=https://www.googleapis.com/auth/calendar";
+    const code2 = try get_code(redirect_uri2);
+    try std.testing.expectEqualStrings("4/0ASc3gC2q6yzYW9OCTLcFZa_is-G98Sa79G7hwfJvgXuVIAO7eX_Td2Z3udVHfuhwyLQ", code2);
+}
 
 /// Note: redirect URI and state params are not included because this oauth
 /// implementation has the PKCE flow in mind.
@@ -92,6 +206,7 @@ test "prepare authorization request uri with small write buf" {
 
 
 pub const code_challenge_len = std.base64.url_safe_no_pad.Encoder.calcSize(std.crypto.hash.sha2.Sha256.digest_length);
+/// code_verifier should have length std.crypto.hash.sha2.Sha256.digest_length
 /// https://datatracker.ietf.org/doc/html/rfc7636#section-4.2
 pub fn create_code_challenge(random: std.Random, code_verifier: []u8, out_buf: []u8) !void {
     if (out_buf.len != code_challenge_len) {
