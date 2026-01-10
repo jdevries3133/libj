@@ -1,6 +1,7 @@
 const builtin = @import("builtin");
 const std = @import("std");
 const libj = @import("root.zig");
+const Buf = libj.Buf;
 const dbg = libj.dbg;
 
 // Change to e.g, `std.Target.Os.Tag.linux` to test non-mac behavior.
@@ -43,7 +44,7 @@ pub fn authenticate(alloc: std.mem.Allocator, io: std.Io) !void {
         &challenge
     );
 
-    var url_out: [1024]u8 = undefined;
+    var url_out: Buf = undefined;
 
     const uri = try libj.rfc7636_pkce_oauth_flow.prepare_authorization_request_uri(
         "accounts.google.com",
@@ -55,7 +56,7 @@ pub fn authenticate(alloc: std.mem.Allocator, io: std.Io) !void {
         &url_out
     );
 
-    var uri_buf: [1024]u8 = undefined;
+    var uri_buf: Buf = undefined;
     var wr = std.Io.Writer.fixed(&uri_buf);
     try uri.format(&wr);
     const uri_str = uri_buf[0..wr.end];
@@ -91,7 +92,7 @@ pub fn authenticate(alloc: std.mem.Allocator, io: std.Io) !void {
     defer alloc.free(code_callback_uri);
 
     const code = try libj.rfc7636_pkce_oauth_flow.get_code(code_callback_uri);
-    var access_token_request_query_param_buf: [1024]u8 = undefined;
+    var access_token_request_query_param_buf: Buf = undefined;
     var auth_request = try libj.rfc7636_pkce_oauth_flow.prepare_access_token_request(
         "oauth2.googleapis.com",
         "/token",
@@ -131,11 +132,11 @@ pub fn authenticate(alloc: std.mem.Allocator, io: std.Io) !void {
     const bd = try alloc.dupe(u8, auth_request.body);
     defer alloc.free(bd);
     _ = try req.sendBodyComplete(bd);
-    var header_buf: [1024]u8 = undefined;
+    var header_buf: Buf = undefined;
     var res = try req.receiveHead(&header_buf);
     var dc_buf: [std.compress.flate.max_window_len]u8 = undefined;
     var dc: std.http.Decompress = undefined;
-    var body_buf: [1024]u8 = undefined;
+    var body_buf: Buf = undefined;
     const rd = res.readerDecompressing(&body_buf, &dc, &dc_buf);
     const response = try libj.read(rd, alloc, .{});
     defer alloc.free(response);

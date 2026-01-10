@@ -1,6 +1,7 @@
 const std = @import("std");
 const string = @import("string.zig");
 const dbg = @import("dbg.zig").dbg;
+const Buf = @import("root.zig").Buf;
 
 const AccessTokenRequest = struct {
     uri: std.Uri,
@@ -59,7 +60,7 @@ pub fn prepare_access_token_request(
 }
 
 test "prepare_access_token_request_uri" {
-    var buf: [1024]u8 = undefined;
+    var buf: Buf = undefined;
     const request = try prepare_access_token_request(
         "google.com",
         "/foo",
