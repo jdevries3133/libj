@@ -61,11 +61,8 @@ pub fn authenticate(alloc: std.mem.Allocator, io: std.Io) !void {
     try uri.format(&wr);
     const uri_str = uri_buf[0..wr.end];
 
-    var has_auto_open = false;
-
     switch (os) {
         .macos => {
-            has_auto_open = true;
             const argv = [_][]const u8{
                 "open",
                 uri_str
