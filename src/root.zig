@@ -1,7 +1,6 @@
 const std = @import("std");
 
-const aliases = @import("aliases.zig");
-pub const Buf = aliases.Buf;
+pub const aliases = @import("aliases.zig");
 
 pub const read = @import("dyn_rd.zig").read;
 pub const zon = @import("zon.zig");

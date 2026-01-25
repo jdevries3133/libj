@@ -60,7 +60,7 @@ pub fn prepare_access_token_request(
 }
 
 test "prepare_access_token_request_uri" {
-    var buf: Buf = undefined;
+    var buf: libj.aliases.Buf1k = undefined;
     const request = try prepare_access_token_request(
         "google.com",
         "/foo",

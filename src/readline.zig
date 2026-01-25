@@ -1,5 +1,5 @@
 const std = @import("std");
-const Buf = @import("root.zig").Buf;
+const libj = @import("root.zig");
 
 /// Read one line from STDIN.
 ///
@@ -8,7 +8,7 @@ pub fn readline(alloc: std.mem.Allocator, io: std.Io, prompt: ?[]const u8) ![]u8
     std.debug.print("{s}: ", .{ prompt orelse "Input" });
     const file = std.Io.File.stdin();
 
-    var buf: Buf = undefined;
+    var buf: libj.aliases.Buf1k = undefined;
     var reader = file.reader(io, &buf);
 
     return _readline(alloc, &reader.interface);
