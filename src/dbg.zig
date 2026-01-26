@@ -3,8 +3,9 @@ const std = @import("std");
 /// Get `loc` by calling the `@src()` builtin.
 pub fn dbg(comptime loc: std.builtin.SourceLocation, comptime fmt: []const u8, args: anytype) void {
     comptime {
-        // fmt template must end with newline
-        std.debug.assert(fmt[fmt.len - 1] == '\n');
+        if (fmt[fmt.len - 1] != '\n') {
+            @compileError("dbg string must end with a newline");
+        }
     }
 
     const prefixed_fmt = comptime pf: {
