@@ -26,20 +26,19 @@ const os = builtin.os.tag;
 /// devices](https://developers.google.com/identity/protocols/oauth2/limited-input-device)
 /// also have their own much simpler flow which can only yield limited
 /// permissions.
-pub fn authenticate(alloc: std.mem.Allocator, io: std.Io) !void {
+pub fn authenticate(alloc: std.mem.Allocator, io: std.Io, env: std.process.Environ) !libj.rfc7636_pkce_oauth_flow.AccessTokenResponse {
 
-    const client_id = std.posix.getenv("GOOGLE_CALDAV_OAUTH_CLIENT_ID") orelse {
+    const client_id = std.process.Environ.getPosix(env, "GOOGLE_CALDAV_OAUTH_CLIENT_ID") orelse {
         return error.MissingClientId;
     };
-    const client_secret = std.posix.getenv("GOOGLE_CALDAV_OAUTH_CLIENT_SECRET") orelse {
+    const client_secret = std.process.Environ.getPosix(env, "GOOGLE_CALDAV_OAUTH_CLIENT_SECRET") orelse {
         return error.MissingClientId;
     };
 
-    const random = std.crypto.random;
     var verifier: [std.crypto.hash.sha2.Sha256.digest_length]u8 = undefined;
     var challenge: [libj.rfc7636_pkce_oauth_flow.code_challenge_len]u8 = undefined;
     try libj.rfc7636_pkce_oauth_flow.create_code_challenge(
-        random,
+        io,
         &verifier,
         &challenge
     );
@@ -67,25 +66,27 @@ pub fn authenticate(alloc: std.mem.Allocator, io: std.Io) !void {
                 "open",
                 uri_str
             };
-            var child = std.process.Child.init(&argv, alloc);
-            try child.spawn(io);
+            var child = try std.process.spawn(io, .{
+                .argv = &argv,
+            });
             const result = try child.wait(io);
             switch (result) {
-                .Exited => |code| {
+                .exited => |code| {
                     if (code != 0) {
                         return error.OpenFailedNonzeroExit;
                     }
                 },
-                .Signal => return error.OpenFailedTerminationSignal,
-                .Stopped => return error.OpenFailedStopped,
-                .Unknown => return error.OpenFailedUnknown,
+                .signal => return error.OpenFailedTerminationSignal,
+                .stopped => return error.OpenFailedStopped,
+                .unknown => return error.OpenFailedUnknown,
             }
         },
          else => {
             std.debug.print("Visit Login URL in your browser: {s}\n\n", .{uri_str});
         }
     }
-    const code_callback_uri = try libj.readline(alloc, io, "Paste back the http://127.0.0.1... URL you were redirected to in your browser");
+    const msg = "Paste back the http://127.0.0.1... URL you were redirected to in your browser";
+    const code_callback_uri = try libj.readline(alloc, io, msg);
     defer alloc.free(code_callback_uri);
 
     const code = try libj.rfc7636_pkce_oauth_flow.get_code(code_callback_uri);

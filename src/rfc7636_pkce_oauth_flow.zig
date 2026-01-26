@@ -209,11 +209,11 @@ test "prepare authorization request uri with small write buf" {
 pub const code_challenge_len = std.base64.url_safe_no_pad.Encoder.calcSize(std.crypto.hash.sha2.Sha256.digest_length);
 /// code_verifier should have length std.crypto.hash.sha2.Sha256.digest_length
 /// https://datatracker.ietf.org/doc/html/rfc7636#section-4.2
-pub fn create_code_challenge(random: std.Random, code_verifier: []u8, out_buf: []u8) !void {
+pub fn create_code_challenge(io: std.Io, code_verifier: []u8, out_buf: []u8) !void {
     if (out_buf.len != code_challenge_len) {
         return error.WrongOutBufSize;
     }
-    try generate_code_verifier(random, code_verifier);
+    try generate_code_verifier(io, code_verifier);
     var verifier_hash: [std.crypto.hash.sha2.Sha256.digest_length]u8 = undefined;
     var hasher = std.crypto.hash.sha2.Sha256.init(.{});
     hasher.update(code_verifier);
@@ -245,8 +245,8 @@ test "creates code challenge" {
 }
 
 /// https://datatracker.ietf.org/doc/html/rfc7636#section-4.1
-fn generate_code_verifier(random: std.Random, out_buf: []u8) !void {
-    std.Random.bytes(random, out_buf);
+fn generate_code_verifier(io: std.Io, out_buf: []u8) !void {
+    try io.randomSecure(out_buf);
     for (0..out_buf.len) |i| {
         const idx = @mod(out_buf[i], UnreserveCharacters.len);
         out_buf[i] = try UnreserveCharacters.at(idx);
