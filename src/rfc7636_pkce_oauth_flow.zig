@@ -1,7 +1,69 @@
 const std = @import("std");
 const string = @import("string.zig");
 const dbg = @import("dbg.zig").dbg;
-const Buf = @import("root.zig").Buf;
+const libj = @import("root.zig");
+
+const TokenTypes = enum {
+    Bearer
+};
+
+const AccessTokenResponseInner = struct {
+    access_token: []const u8,
+    token_type: TokenTypes,
+    expires_in: u32,
+    refresh_token: ?[]const u8 = null,
+    refresh_token_expires_in: ?u32 = null
+};
+
+pub const AccessTokenResponse = std.json.Parsed(AccessTokenResponseInner);
+
+/// https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4
+pub fn parse_access_token_response(alloc: std.mem.Allocator, response: []const u8) !AccessTokenResponse {
+    const json = try std.json.parseFromSlice(AccessTokenResponseInner, alloc, response, .{
+        .ignore_unknown_fields = true,
+        .allocate = std.json.AllocWhen.alloc_always
+    });
+    return json;
+}
+
+test "parsing a typical auth server response" {
+    const alloc = std.testing.allocator;
+    const response =
+        \\{
+        \\  "access_token": "fish",
+        \\  "expires_in": 3599,
+        \\  "refresh_token": "sticks",
+        \\  "scope": "https://www.googleapis.com/auth/calendar",
+        \\  "token_type": "Bearer",
+        \\  "refresh_token_expires_in": 604799
+        \\}
+    ;
+
+    const parse_result = try parse_access_token_response(alloc, response);
+    defer parse_result.deinit();
+    try std.testing.expectEqualStrings("fish", parse_result.value.access_token);
+    try std.testing.expectEqual(604799, parse_result.value.refresh_token_expires_in.?);
+    try std.testing.expectEqualStrings("sticks", parse_result.value.refresh_token.?);
+}
+
+
+test "parsing without optional fields" {
+    const alloc = std.testing.allocator;
+    const response =
+        \\{
+        \\  "access_token": "fish",
+        \\  "expires_in": 3599,
+        \\  "scope": "https://www.googleapis.com/auth/calendar",
+        \\  "token_type": "Bearer"
+        \\}
+    ;
+    const parse_result = try parse_access_token_response(alloc, response);
+    defer parse_result.deinit();
+    try std.testing.expectEqualStrings("fish", parse_result.value.access_token);
+    try std.testing.expectEqual(3599, parse_result.value.expires_in);
+    try std.testing.expectEqual(null, parse_result.value.refresh_token);
+    try std.testing.expectEqual(null, parse_result.value.refresh_token_expires_in);
+}
 
 const AccessTokenRequest = struct {
     uri: std.Uri,

@@ -14,5 +14,8 @@ pub fn main(init: std.process.Init.Minimal) !void {
     defer threaded_io.deinit();
 
     const io = threaded_io.io();
-    try libj.google_oauth.authenticate(alloc, io, init.environ);
+    const response = try libj.google_oauth.authenticate(alloc, io, init.environ);
+    defer response.deinit();
+
+    dbg(@src(), "access token: {s}\n", . { response.value.access_token });
 }

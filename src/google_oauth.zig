@@ -138,10 +138,9 @@ pub fn authenticate(alloc: std.mem.Allocator, io: std.Io, env: std.process.Envir
     const rd = res.readerDecompressing(&body_buf, &dc, &dc_buf);
     const response = try libj.read(rd, alloc, .{});
     defer alloc.free(response);
-    if (res.head.status != std.http.Status.ok) {
-        dbg(@src(), "err response\n{s}\n", .{ response });
-       return error.AuthTokenResponseError;
-    } else {
-        dbg(@src(), "Token: {s}\n", .{ response });
-    }
+    const parsed_result =
+        try libj.rfc7636_pkce_oauth_flow.parse_access_token_response(
+            alloc, response
+        );
+    return parsed_result;
 }
