@@ -285,24 +285,24 @@ pub fn create_code_challenge(io: std.Io, code_verifier: []u8, out_buf: []u8) !vo
 }
 
 test "create code challenge requires sufficiently large input buffer" {
-    var fake_prng = std.Random.DefaultPrng.init(1);
+    const io = std.testing.io;
     var in: [1]u8 = undefined;
     var out: [1]u8 = undefined;
     try std.testing.expectError(
         error.WrongOutBufSize,
-        create_code_challenge(fake_prng.random(), &in, &out)
+        create_code_challenge(io, &in, &out)
     );
 }
 
 test "creates code challenge" {
-    var fake_prng = std.Random.DefaultPrng.init(1);
+    const io = std.testing.io;
     var in: [1028]u8 = undefined;
     var out: [code_challenge_len]u8 = undefined;
     const SENTINEL = "SENTINEL";
     for (0..SENTINEL.len) |idx| {
         out[idx] = SENTINEL[idx];
     }
-    try create_code_challenge(fake_prng.random(), &in, &out);
+    try create_code_challenge(io, &in, &out);
     try std.testing.expect(out[0..SENTINEL.len] != SENTINEL);
 }
 
@@ -316,9 +316,9 @@ fn generate_code_verifier(io: std.Io, out_buf: []u8) !void {
 }
 
 test "code verifier generation (Section 4.1)" {
-    var fake_prng = std.Random.DefaultPrng.init(1);
+    const io = std.testing.io;
     var buf = [_]u8{0} ** 128;
-    try generate_code_verifier(fake_prng.random(), &buf);
+    try generate_code_verifier(io, &buf);
 
     for (buf) |byte| {
         // all bytes in the buffer, which was initialized to zero, have been
