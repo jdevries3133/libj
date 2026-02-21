@@ -6,7 +6,7 @@ const read = @import("dyn_rd.zig").read;
 /// Uses `std.zon.parse.fromSliceAlloc`. To automatically free the result, see
 /// `std.zon.parse.free`.
 pub fn fromReader(T: anytype, rd: *std.Io.Reader, diag: *std.zon.parse.Diagnostics, alloc: Al) !T {
-    const str =  try read(rd, alloc, .{});
+    const str = try read(rd, alloc, .{});
     defer alloc.free(str);
     const strz = try alloc.dupeZ(u8, str);
     defer alloc.free(strz);
@@ -16,12 +16,10 @@ pub fn fromReader(T: anytype, rd: *std.Io.Reader, diag: *std.zon.parse.Diagnosti
 test "read simple zon from file" {
     var dba = std.heap.DebugAllocator(.{}){};
     const alloc = dba.allocator();
-    const zonstr = 
+    const zonstr =
         \\.{ .message = "hello world" }
-        ;
-    const T = struct {
-        message: [:0]const u8
-    };
+    ;
+    const T = struct { message: [:0]const u8 };
     var rd = std.Io.Reader.fixed(zonstr);
     var diag: std.zon.parse.Diagnostics = .{};
     const zon = try fromReader(T, &rd, &diag, alloc);

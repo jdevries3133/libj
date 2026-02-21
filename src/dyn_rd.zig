@@ -2,21 +2,11 @@
 
 const std = @import("std");
 
-pub const DynRdErr = error{
-    ByteLimitOverflow,
-    OutOfMemory,
-    ReadFailed
-};
+pub const DynRdErr = error{ ByteLimitOverflow, OutOfMemory, ReadFailed };
 
-pub const ByteLimit = union(enum) {
-    Unlimited,
-    Limited: u64
-};
+pub const ByteLimit = union(enum) { Unlimited, Limited: u64 };
 
-const Opts = struct {
-    chunk_size: comptime_int = 1024,
-    byte_limit: comptime_int = 65_536
-};
+const Opts = struct { chunk_size: comptime_int = 1024, byte_limit: comptime_int = 65_536 };
 
 /// Returns memory owned by the caller.
 pub fn read(reader: *std.Io.Reader, alloc: std.mem.Allocator, opts: Opts) DynRdErr![]u8 {
@@ -48,27 +38,23 @@ test "read tiny string without options" {
 }
 
 test "read bigger than chunk size without options" {
-    const str = [_]u8{ 'z' } ** (2 << 12);
+    const str = [_]u8{'z'} ** (2 << 12);
     try test_template(&str, .{});
 }
 
 test "read bigger than chunk size with tiny chunks" {
-    const str = [_]u8{ 'z' } ** (2 << 12);
-    try test_template(&str, .{
-        .chunk_size = 2
-    });
+    const str = [_]u8{'z'} ** (2 << 12);
+    try test_template(&str, .{ .chunk_size = 2 });
 }
 
 test "read binary" {
-    const bytes = [_]u8{190, 175, 191, 148, 180, 122, 35, 66, 80, 182, 124, 18, 105, 210, 39};
+    const bytes = [_]u8{ 190, 175, 191, 148, 180, 122, 35, 66, 80, 182, 124, 18, 105, 210, 39 };
     try test_template(&bytes, .{});
 }
 
 test "read bigger than limit" {
-    const str = [_]u8{ 'z' } ** (2 << 12);
-    _  = test_template(&str, .{
-        .byte_limit = 2 << 10
-    }) catch |e| {
+    const str = [_]u8{'z'} ** (2 << 12);
+    _ = test_template(&str, .{ .byte_limit = 2 << 10 }) catch |e| {
         try std.testing.expectEqual(DynRdErr.ByteLimitOverflow, e);
         return;
     };

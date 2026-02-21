@@ -4,8 +4,12 @@ const libj = @import("root.zig");
 /// Read one line from STDIN.
 ///
 /// Warning: only ASCII!
-pub fn readline(alloc: std.mem.Allocator, io: std.Io, prompt: ?[]const u8) ![]u8 {
-    std.debug.print("{s}: ", .{ prompt orelse "Input" });
+pub fn readline(
+    alloc: std.mem.Allocator,
+    io: std.Io,
+    prompt: ?[]const u8,
+) ![]u8 {
+    std.debug.print("{s}: ", .{prompt orelse "Input"});
     const file = std.Io.File.stdin();
 
     var buf: libj.aliases.Buf1k = undefined;
@@ -35,10 +39,7 @@ test "readline rejects non-ascii text" {
     const alloc = std.testing.allocator;
     const buf = "hi ☺️";
     var rd = std.Io.Reader.fixed(buf);
-    try std.testing.expectError(
-        error.NotAscii,
-        _readline(alloc, &rd)
-    );
+    try std.testing.expectError(error.NotAscii, _readline(alloc, &rd));
 }
 
 test "readline reads one line" {

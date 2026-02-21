@@ -3,26 +3,26 @@ const string = @import("string.zig");
 const dbg = @import("dbg.zig").dbg;
 const libj = @import("root.zig");
 
-const TokenTypes = enum {
-    Bearer
-};
+const TokenTypes = enum { Bearer };
 
 const AccessTokenResponseInner = struct {
     access_token: []const u8,
     token_type: TokenTypes,
     expires_in: u32,
     refresh_token: ?[]const u8 = null,
-    refresh_token_expires_in: ?u32 = null
+    refresh_token_expires_in: ?u32 = null,
 };
 
 pub const AccessTokenResponse = std.json.Parsed(AccessTokenResponseInner);
 
 /// https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4
 pub fn parse_access_token_response(alloc: std.mem.Allocator, response: []const u8) !AccessTokenResponse {
-    const json = try std.json.parseFromSlice(AccessTokenResponseInner, alloc, response, .{
-        .ignore_unknown_fields = true,
-        .allocate = std.json.AllocWhen.alloc_always
-    });
+    const json = try std.json.parseFromSlice(
+        AccessTokenResponseInner,
+        alloc,
+        response,
+        .{ .ignore_unknown_fields = true, .allocate = std.json.AllocWhen.alloc_always },
+    );
     return json;
 }
 
@@ -46,7 +46,6 @@ test "parsing a typical auth server response" {
     try std.testing.expectEqualStrings("sticks", parse_result.value.refresh_token.?);
 }
 
-
 test "parsing without optional fields" {
     const alloc = std.testing.allocator;
     const response =
@@ -65,10 +64,7 @@ test "parsing without optional fields" {
     try std.testing.expectEqual(null, parse_result.value.refresh_token_expires_in);
 }
 
-const AccessTokenRequest = struct {
-    uri: std.Uri,
-    body: []const u8
-};
+const AccessTokenRequest = struct { uri: std.Uri, body: []const u8 };
 
 /// https://datatracker.ietf.org/doc/html/rfc7636#section-4.5
 pub fn prepare_access_token_request(
@@ -79,23 +75,13 @@ pub fn prepare_access_token_request(
     redirect_uri: []const u8,
     client_id: []const u8,
     client_secret: []const u8,
-    request_body_buf: []u8
+    request_body_buf: []u8,
 ) !AccessTokenRequest {
-    const code_verifier_c = std.Uri.Component{
-        .raw = code_verifier
-    };
-    const code_c = std.Uri.Component{
-        .raw = code
-    };
-    const redirect_uri_c = std.Uri.Component{
-        .raw = redirect_uri
-    };
-    const client_id_c = std.Uri.Component{
-        .raw = client_id
-    };
-    const client_secret_c = std.Uri.Component{
-        .raw = client_secret
-    };
+    const code_verifier_c = std.Uri.Component{ .raw = code_verifier };
+    const code_c = std.Uri.Component{ .raw = code };
+    const redirect_uri_c = std.Uri.Component{ .raw = redirect_uri };
+    const client_id_c = std.Uri.Component{ .raw = client_id };
+    const client_secret_c = std.Uri.Component{ .raw = client_secret };
     var wr = std.Io.Writer.fixed(request_body_buf);
     _ = try wr.write("code_verifier=");
     try code_verifier_c.formatQuery(&wr);
@@ -111,14 +97,11 @@ pub fn prepare_access_token_request(
 
     const body = request_body_buf[0..wr.end];
 
-    return .{
-        .uri = std.Uri{
-            .host = .{ .raw = host },
-            .path = .{ .raw = path },
-            .scheme = "https",
-        },
-        .body = body
-    };
+    return .{ .uri = std.Uri{
+        .host = .{ .raw = host },
+        .path = .{ .raw = path },
+        .scheme = "https",
+    }, .body = body };
 }
 
 test "prepare_access_token_request_uri" {
@@ -131,7 +114,7 @@ test "prepare_access_token_request_uri" {
         "http://127.0.0.1/callback",
         "1234",
         "5678",
-        &buf
+        &buf,
     );
     var uri_str: [2048]u8 = undefined;
     var wr = std.Io.Writer.fixed(&uri_str);
@@ -150,12 +133,12 @@ pub fn get_code(code_callback_uri: []const u8) ![]const u8 {
         return error.CodeNotFound;
     };
     const query = query_c.percent_encoded;
-    const needle =  "code=";
-    const start = std.mem.find(u8, query,needle) orelse {
+    const needle = "code=";
+    const start = std.mem.find(u8, query, needle) orelse {
         return error.CodeNotFound;
     };
     const end = std.mem.findScalar(u8, query[start..], '&') orelse query.len;
-    return query[start + needle.len..end + start];
+    return query[start + needle.len .. end + start];
 }
 
 test "get code checks if uri has query" {
@@ -195,20 +178,12 @@ pub fn prepare_authorization_request_uri(
     scopes: []const u8,
     code_challenge: []const u8,
     redirect_uri: []const u8,
-    query_param_write_buf: []u8
+    query_param_write_buf: []u8,
 ) !std.Uri {
-    const client_id_c = std.Uri.Component{
-        .raw = client_id
-    };
-    const scopes_c = std.Uri.Component{
-        .raw = scopes
-    };
-    const challenge_c = std.Uri.Component{
-        .raw = code_challenge
-    };
-    const redirect_uri_c = std.Uri.Component{
-        .raw = redirect_uri
-    };
+    const client_id_c = std.Uri.Component{ .raw = client_id };
+    const scopes_c = std.Uri.Component{ .raw = scopes };
+    const challenge_c = std.Uri.Component{ .raw = code_challenge };
+    const redirect_uri_c = std.Uri.Component{ .raw = redirect_uri };
     var wr = std.Io.Writer.fixed(query_param_write_buf);
     _ = try wr.write("client_id=");
     try client_id_c.formatQuery(&wr);
@@ -219,7 +194,7 @@ pub fn prepare_authorization_request_uri(
     _ = try wr.write("&code_challenge_method=S256");
     _ = try wr.write("&response_type=code");
 
-    _  = try wr.write("&redirect_uri=");
+    _ = try wr.write("&redirect_uri=");
     try redirect_uri_c.formatQuery(&wr);
 
     const query_params = query_param_write_buf[0..wr.end];
@@ -228,7 +203,7 @@ pub fn prepare_authorization_request_uri(
         .host = .{ .raw = host },
         .path = .{ .raw = path },
         .scheme = "https",
-        .query = .{ .percent_encoded = query_params }
+        .query = .{ .percent_encoded = query_params },
     };
 }
 
@@ -241,7 +216,7 @@ test "prepare authorization request URI" {
         "this that other",
         "rando",
         "localhost:123",
-        &buf
+        &buf,
     );
     var uri_str: [2048]u8 = undefined;
     var wr = std.Io.Writer.fixed(&uri_str);
@@ -255,18 +230,9 @@ test "prepare authorization request uri with small write buf" {
     var buf: [1]u8 = undefined;
     try std.testing.expectError(
         error.WriteFailed,
-        prepare_authorization_request_uri(
-            "google.com",
-            "/foo",
-            "1234",
-            "this that other",
-            "rando",
-            "localhost:123",
-            &buf
-        )
+        prepare_authorization_request_uri("google.com", "/foo", "1234", "this that other", "rando", "localhost:123", &buf),
     );
 }
-
 
 pub const code_challenge_len = std.base64.url_safe_no_pad.Encoder.calcSize(std.crypto.hash.sha2.Sha256.digest_length);
 /// code_verifier should have length std.crypto.hash.sha2.Sha256.digest_length
@@ -290,7 +256,7 @@ test "create code challenge requires sufficiently large input buffer" {
     var out: [1]u8 = undefined;
     try std.testing.expectError(
         error.WrongOutBufSize,
-        create_code_challenge(io, &in, &out)
+        create_code_challenge(io, &in, &out),
     );
 }
 
@@ -342,40 +308,16 @@ test "code verifier generation (Section 4.1)" {
 ///
 /// https://datatracker.ietf.org/doc/html/rfc3986#section-2.3
 const UnreserveCharacters = struct {
-    const CharsetRange = struct {
-        run_length: u16,
-        first_char: u8
-    };
+    const CharsetRange = struct { run_length: u16, first_char: u8 };
 
     const charset = [_]CharsetRange{
-        CharsetRange {
-            .run_length = 1,
-            .first_char = '-'
-        },
-        CharsetRange {
-            .run_length = 1,
-            .first_char = '.'
-        },
-        CharsetRange{
-            .run_length = 10,
-            .first_char = '0'
-        },
-        CharsetRange {
-            .run_length = 1,
-            .first_char = '_'
-        },
-        CharsetRange {
-            .run_length = 1,
-            .first_char = '~'
-        },
-        CharsetRange{
-            .run_length = 26,
-            .first_char = 'a'
-        },
-        CharsetRange{
-            .run_length = 26,
-            .first_char = 'A'
-        },
+        CharsetRange{ .run_length = 1, .first_char = '-' },
+        CharsetRange{ .run_length = 1, .first_char = '.' },
+        CharsetRange{ .run_length = 10, .first_char = '0' },
+        CharsetRange{ .run_length = 1, .first_char = '_' },
+        CharsetRange{ .run_length = 1, .first_char = '~' },
+        CharsetRange{ .run_length = 26, .first_char = 'a' },
+        CharsetRange{ .run_length = 26, .first_char = 'A' },
     };
 
     const len = blk: {
@@ -401,7 +343,6 @@ const UnreserveCharacters = struct {
         }
         return error.IndexOutOfRange;
     }
-
 };
 
 test "unreserved chars" {

@@ -30,4 +30,3 @@ pub fn dbg(comptime loc: std.builtin.SourceLocation, comptime fmt: []const u8, a
     };
     std.debug.print(&prefixed_fmt, args);
 }
-
