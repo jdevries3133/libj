@@ -6,14 +6,26 @@ pub const DynRdErr = error{ ByteLimitOverflow, OutOfMemory, ReadFailed };
 
 pub const ByteLimit = union(enum) { Unlimited, Limited: u64 };
 
-const Opts = struct { chunk_size: comptime_int = 1024, byte_limit: comptime_int = 65_536 };
+const Opts = struct {
+    chunk_size: comptime_int = 1024,
+    byte_limit: comptime_int = 65_536,
+};
 
 /// Returns memory owned by the caller.
-pub fn read(reader: *std.Io.Reader, alloc: std.mem.Allocator, opts: Opts) DynRdErr![]u8 {
-    var rd_buf: [opts.chunk_size]u8 = undefined;
+///
+/// Warning: this doesn't work with HTTP responses because you can't read at
+/// all past the end of the response or else a panic happens in the HTTP client
+/// library.
+pub fn read(
+    reader: *std.Io.Reader,
+    alloc: std.mem.Allocator,
+    opts: Opts,
+) DynRdErr![]u8 {
+    var rd_buf = try alloc.alloc(u8, opts.chunk_size);
+    defer alloc.free(rd_buf);
     var all_stdin = std.ArrayList(u8){};
     defer all_stdin.deinit(alloc);
-    while (reader.readSliceShort(&rd_buf)) |chunk| {
+    while (reader.readSliceShort(rd_buf)) |chunk| {
         if (all_stdin.items.len > opts.byte_limit) {
             return DynRdErr.ByteLimitOverflow;
         }
