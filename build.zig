@@ -28,6 +28,20 @@ pub fn build(b: *std.Build) void {
     // to our consumers. We must give it a name because a Zig package can expose
     // multiple modules and consumers will need to be able to specify which
     // module they want to access.
+
+    // Crypto gets its own static library because it's slow to compile. As a
+    // separate compilation artifact, the build system caches its .a file
+    // independently — so changes to non-crypto source files won't trigger
+    // recompilation of the crypto code.
+    const crypto_lib = b.addLibrary(.{
+        .name = "libj-crypto",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/crypto_root.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
     const mod = b.addModule("libj", .{
         // The root source file is the "entry point" of this module. Users of
         // this module will only be able to access public declarations contained
@@ -39,6 +53,9 @@ pub fn build(b: *std.Build) void {
         // Later on we'll use this module as the root module of a test executable
         // which requires us to specify a target.
         .target = target,
+        .imports = &.{
+            .{ .name = "libj-crypto", .module = crypto_lib.root_module },
+        },
     });
 
     // Here we define an executable. An executable needs to have a root module
@@ -79,6 +96,7 @@ pub fn build(b: *std.Build) void {
                 // can be extremely useful in case of collisions (which can happen
                 // importing modules from different packages).
                 .{ .name = "libj", .module = mod },
+                .{ .name = "libj-crypto", .module = crypto_lib.root_module },
             },
         }),
     });
@@ -125,6 +143,12 @@ pub fn build(b: *std.Build) void {
     // A run step that will run the test executable.
     const run_mod_tests = b.addRunArtifact(mod_tests);
 
+    // Tests for the crypto static library module.
+    const crypto_mod_tests = b.addTest(.{
+        .root_module = crypto_lib.root_module,
+    });
+    const run_crypto_mod_tests = b.addRunArtifact(crypto_mod_tests);
+
     // Creates an executable that will run `test` blocks from the executable's
     // root module. Note that test executables only test one module at a time,
     // hence why we have to create two separate ones.
@@ -140,6 +164,7 @@ pub fn build(b: *std.Build) void {
     // make the two of them run in parallel.
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_mod_tests.step);
+    test_step.dependOn(&run_crypto_mod_tests.step);
     test_step.dependOn(&run_exe_tests.step);
 
     // Just like flags, top level steps are also listed in the `--help` menu.

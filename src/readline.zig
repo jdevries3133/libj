@@ -1,5 +1,5 @@
 const std = @import("std");
-const libj = @import("root.zig");
+const aliases = @import("aliases.zig");
 
 /// Read one line from STDIN.
 ///
@@ -12,7 +12,7 @@ pub fn readline(
     std.debug.print("{s}: ", .{prompt orelse "Input"});
     const file = std.Io.File.stdin();
 
-    var buf: libj.aliases.Buf1k = undefined;
+    var buf: aliases.Buf1k = undefined;
     var reader = file.reader(io, &buf);
 
     return _readline(alloc, &reader.interface);

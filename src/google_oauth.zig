@@ -1,8 +1,9 @@
 const builtin = @import("builtin");
 const std = @import("std");
-const libj = @import("root.zig");
-const Buf = libj.Buf1k;
-const dbg = libj.dbg;
+const libj_crypto = @import("libj-crypto");
+const aliases = @import("aliases.zig");
+const read = @import("dyn_rd.zig").read;
+const oauth_callback_server = @import("oauth_callback_server.zig");
 
 // Change to e.g, `std.Target.Os.Tag.linux` to test non-mac behavior.
 const os = builtin.os.tag;
@@ -26,7 +27,11 @@ const os = builtin.os.tag;
 /// devices](https://developers.google.com/identity/protocols/oauth2/limited-input-device)
 /// also have their own much simpler flow which can only yield limited
 /// permissions.
-pub fn authenticate(alloc: std.mem.Allocator, io: std.Io, env: std.process.Environ) !libj.rfc7636_pkce_oauth_flow.AccessTokenResponse {
+pub fn authenticate(
+    alloc: std.mem.Allocator,
+    io: std.Io,
+    env: std.process.Environ,
+) !libj_crypto.rfc7636_pkce_oauth_flow.AccessTokenResponse {
     const client_id = std.process.Environ.getPosix(env, "GOOGLE_CALDAV_OAUTH_CLIENT_ID") orelse {
         return error.MissingClientId;
     };
@@ -34,15 +39,23 @@ pub fn authenticate(alloc: std.mem.Allocator, io: std.Io, env: std.process.Envir
         return error.MissingClientId;
     };
 
-    var verifier: [std.crypto.hash.sha2.Sha256.digest_length]u8 = undefined;
-    var challenge: [libj.rfc7636_pkce_oauth_flow.code_challenge_len]u8 = undefined;
-    try libj.rfc7636_pkce_oauth_flow.create_code_challenge(io, &verifier, &challenge);
+    var verifier: [libj_crypto.rfc7636_pkce_oauth_flow.code_verifier_len]u8 = undefined;
+    var challenge: [libj_crypto.rfc7636_pkce_oauth_flow.code_challenge_len]u8 = undefined;
+    try libj_crypto.rfc7636_pkce_oauth_flow.create_code_challenge(io, &verifier, &challenge);
 
-    var url_out: libj.aliases.Buf1k = undefined;
+    var url_out: aliases.Buf1k = undefined;
 
-    const uri = try libj.rfc7636_pkce_oauth_flow.prepare_authorization_request_uri("accounts.google.com", "/o/oauth2/v2/auth", client_id, "https://www.googleapis.com/auth/calendar", &challenge, "http://127.0.0.1:8000", &url_out);
+    const uri = try libj_crypto.rfc7636_pkce_oauth_flow.prepare_authorization_request_uri(
+        "accounts.google.com",
+        "/o/oauth2/v2/auth",
+        client_id,
+        "https://www.googleapis.com/auth/calendar",
+        &challenge,
+        "http://127.0.0.1:8000",
+        &url_out,
+    );
 
-    var uri_buf: libj.aliases.Buf1k = undefined;
+    var uri_buf: aliases.Buf1k = undefined;
     var wr = std.Io.Writer.fixed(&uri_buf);
     try uri.format(&wr);
     const uri_str = uri_buf[0..wr.end];
@@ -70,12 +83,21 @@ pub fn authenticate(alloc: std.mem.Allocator, io: std.Io, env: std.process.Envir
         },
     }
     std.debug.print("\nWaiting for OAuth callback on http://127.0.0.1:8000...\n", .{});
-    const code_callback_uri = try libj.oauth_callback_server.listen_for_callback(alloc, io, 8000);
+    const code_callback_uri = try oauth_callback_server.listen_for_callback(alloc, io, 8000);
     defer alloc.free(code_callback_uri);
 
-    const code = try libj.rfc7636_pkce_oauth_flow.get_code(code_callback_uri);
-    var access_token_request_query_param_buf: libj.aliases.Buf1k = undefined;
-    var auth_request = try libj.rfc7636_pkce_oauth_flow.prepare_access_token_request("oauth2.googleapis.com", "/token", &verifier, code, "http://127.0.0.1:8000", client_id, client_secret, &access_token_request_query_param_buf);
+    const code = try libj_crypto.rfc7636_pkce_oauth_flow.get_code(code_callback_uri);
+    var access_token_request_query_param_buf: aliases.Buf1k = undefined;
+    var auth_request = try libj_crypto.rfc7636_pkce_oauth_flow.prepare_access_token_request(
+        "oauth2.googleapis.com",
+        "/token",
+        &verifier,
+        code,
+        "http://127.0.0.1:8000",
+        client_id,
+        client_secret,
+        &access_token_request_query_param_buf,
+    );
     var writer2 = std.Io.Writer.Allocating.init(alloc);
     try auth_request.uri.format(&writer2.writer);
 
@@ -87,20 +109,31 @@ pub fn authenticate(alloc: std.mem.Allocator, io: std.Io, env: std.process.Envir
     var auth_request_wr = std.Io.Writer.fixed(&content_length_strbuf);
     _ = try auth_request_wr.printInt(auth_request.body.len, 10, .lower, .{});
     const size_str = content_length_strbuf[0..auth_request_wr.end];
-    var req = try http_c.request(std.http.Method.POST, auth_request.uri, .{ .extra_headers = &.{ .{ .name = "Content-Length", .value = size_str }, .{ .name = "Content-Type", .value = "application/x-www-form-urlencoded" } } });
+    var req = try http_c.request(
+        std.http.Method.POST,
+        auth_request.uri,
+        .{
+            .extra_headers = &.{
+                .{ .name = "Content-Length", .value = size_str },
+                .{ .name = "Content-Type", .value = "application/x-www-form-urlencoded" },
+            },
+        },
+    );
     req.transfer_encoding = std.http.Client.Request.TransferEncoding{ .content_length = auth_request.body.len };
     const bd = try alloc.dupe(u8, auth_request.body);
     defer alloc.free(bd);
     _ = try req.sendBodyComplete(bd);
-    var header_buf: libj.aliases.Buf1k = undefined;
+    var header_buf: aliases.Buf1k = undefined;
     var res = try req.receiveHead(&header_buf);
     var dc_buf: [std.compress.flate.max_window_len]u8 = undefined;
     var dc: std.http.Decompress = undefined;
-    var body_buf: libj.aliases.Buf1k = undefined;
+    var body_buf: aliases.Buf1k = undefined;
     const rd = res.readerDecompressing(&body_buf, &dc, &dc_buf);
-    const response = try libj.read(rd, alloc, .{});
+    const response = try read(rd, alloc, .{});
     defer alloc.free(response);
-    const parsed_result =
-        try libj.rfc7636_pkce_oauth_flow.parse_access_token_response(alloc, response);
+    const parsed_result = try libj_crypto.rfc7636_pkce_oauth_flow.parse_access_token_response(
+        alloc,
+        response,
+    );
     return parsed_result;
 }

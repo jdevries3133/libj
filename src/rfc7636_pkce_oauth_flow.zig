@@ -1,7 +1,5 @@
 const std = @import("std");
 const string = @import("string.zig");
-const dbg = @import("dbg.zig").dbg;
-const libj = @import("root.zig");
 
 const TokenTypes = enum { Bearer };
 
@@ -16,7 +14,10 @@ const AccessTokenResponseInner = struct {
 pub const AccessTokenResponse = std.json.Parsed(AccessTokenResponseInner);
 
 /// https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.4
-pub fn parse_access_token_response(alloc: std.mem.Allocator, response: []const u8) !AccessTokenResponse {
+pub fn parse_access_token_response(
+    alloc: std.mem.Allocator,
+    response: []const u8,
+) !AccessTokenResponse {
     const json = try std.json.parseFromSlice(
         AccessTokenResponseInner,
         alloc,
@@ -105,7 +106,7 @@ pub fn prepare_access_token_request(
 }
 
 test "prepare_access_token_request_uri" {
-    var buf: libj.aliases.Buf1k = undefined;
+    var buf: [1024]u8 = undefined;
     const request = try prepare_access_token_request(
         "google.com",
         "/foo",
@@ -234,7 +235,8 @@ test "prepare authorization request uri with small write buf" {
     );
 }
 
-pub const code_challenge_len = std.base64.url_safe_no_pad.Encoder.calcSize(std.crypto.hash.sha2.Sha256.digest_length);
+pub const code_verifier_len = std.crypto.hash.sha2.Sha256.digest_length;
+pub const code_challenge_len = std.base64.url_safe_no_pad.Encoder.calcSize(code_verifier_len);
 /// code_verifier should have length std.crypto.hash.sha2.Sha256.digest_length
 /// https://datatracker.ietf.org/doc/html/rfc7636#section-4.2
 pub fn create_code_challenge(io: std.Io, code_verifier: []u8, out_buf: []u8) !void {

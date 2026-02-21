@@ -1,6 +1,7 @@
 const std = @import("std");
-const libj = @import("root.zig");
-const dbg = libj.dbg;
+const google_oauth = @import("google_oauth.zig");
+const google_calendar = @import("google_calendar.zig");
+const dbg = @import("dbg.zig").dbg;
 
 pub fn main(init: std.process.Init.Minimal) !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -10,7 +11,7 @@ pub fn main(init: std.process.Init.Minimal) !void {
     const io = threaded_io.io();
 
     const oauth_access_token = std.process.Environ.getPosix(init.environ, "GOOGLE_OAUTH_ACCESS_KEY") orelse blk: {
-        const response = try libj.google_oauth.authenticate(alloc, io, init.environ);
+        const response = try google_oauth.authenticate(alloc, io, init.environ);
         defer response.deinit();
         const access_token = try alloc.dupe(u8, response.value.access_token);
         break :blk access_token;

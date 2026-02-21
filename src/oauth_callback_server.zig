@@ -1,5 +1,5 @@
 const std = @import("std");
-const libj = @import("root.zig");
+const aliases = @import("aliases.zig");
 
 /// Simple HTTP server that listens on 127.0.0.1:8000 for OAuth callback
 /// Returns the full callback URI that was received
@@ -34,7 +34,7 @@ pub fn listen_for_callback(alloc: std.mem.Allocator, io: std.Io, port: u16) ![]c
     }
 
     // Build full callback URI with the request target (which includes query string)
-    var full_uri: libj.aliases.Buf1k = undefined;
+    var full_uri: aliases.Buf1k = undefined;
     var uri_writer = std.Io.Writer.fixed(&full_uri);
 
     try uri_writer.writeAll("http://127.0.0.1:");
