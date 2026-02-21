@@ -8,6 +8,7 @@ pub const rfc7636_pkce_oauth_flow = @import("rfc7636_pkce_oauth_flow.zig");
 pub const dbg = @import("dbg.zig").dbg;
 pub const readline = @import("readline.zig").readline;
 pub const google_oauth = @import("google_oauth.zig");
+pub const oauth_callback_server = @import("oauth_callback_server.zig");
 
 test {
     _ = @import("langlearn.zig");
